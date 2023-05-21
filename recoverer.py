@@ -1,6 +1,5 @@
 from __future__ import print_function
 import io
-import shutil
 
 import os.path
 
@@ -17,7 +16,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 service = None
 creds = None
 allFoldersFound = []
-foldersToCheck = ['10anu-USkcZwx9heqUm-IYOkRjNNYsnUh']
+foldersToCheck = [{'id':'1_23sgIonMLA_DxY3u_75tL97KseKpS5m', 'path': None}]
 allFilesFound = []
 
 
@@ -30,7 +29,7 @@ def listFolders(target, nextPageToken=None, prevRequest=None):
         request = service.files().list(
             pageSize=10,
             fields="nextPageToken, files(id, name)",
-            q=f"'{target}' in parents and mimeType = 'application/vnd.google-apps.folder'",
+            q=f"'{target['id']}' in parents and mimeType = 'application/vnd.google-apps.folder'",
         )
     results = request.execute()
     folders = results.get('files', [])
@@ -41,11 +40,11 @@ def listFolders(target, nextPageToken=None, prevRequest=None):
     print('Folders:')
     for folder in folders:
         print(u'{0} ({1})'.format(folder['name'], folder['id']))
-        path = f"{os.curdir}{os.sep}downloads{os.sep}{folder['name']}"
+        path = f"{os.curdir}{os.sep}downloads{os.sep}{folder['name']}" if target['path'] is None else f"{target['path']}{os.sep}{folder['name']}"
         if not os.path.exists(path):
             os.makedirs(path)
         allFoldersFound.append({'id':folder['id'], 'path': path})
-        foldersToCheck.append(folder['id'])
+        foldersToCheck.append({'id': folder['id'], 'path': path})
 
     nextPageToken = results.get('nextPageToken', None)
     if nextPageToken is not None:
@@ -86,7 +85,10 @@ def listFiles(target, nextPageToken=None, prevRequest=None):
 
 def getOldestRevision(file, nextPageToken=None, prevRequest=None):
     global service
-
+    if os.path.exists(file['name']):
+            print(f"File {file['name']} already exists")
+            return
+    
     if nextPageToken != None and prevRequest != None:
         request = service.revisions().list_next(
             prevRequest, {"nextPageToken": nextPageToken})
@@ -160,6 +162,7 @@ def main():
     try:
         global service, allFilesFound, allFoldersFound
         service = build('drive', 'v3', credentials=creds)
+        allFoldersFound = [{'id': foldersToCheck[0]['id'], 'path': f"{os.curdir}{os.sep}downloads"}]
         listFolders(foldersToCheck.pop())
         for folder in allFoldersFound:
             listFiles(folder)
